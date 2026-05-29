@@ -7,6 +7,7 @@ use std::{
     io::Read,
     net::{Ipv4Addr, SocketAddr},
     path::Path,
+    process,
 };
 
 use crate::config::keymatch::match_word;
@@ -71,9 +72,20 @@ impl Config {
         };
 
         for ins in data {
-            let pair = ins.split("=").map(|s| s.trim()).collect::<Vec<&str>>();
-            if pair.len() < 2 {
+            let ins = ins.trim();
+            // Place for commenting
+            if ins.starts_with('#') {
                 continue;
+            }
+
+            if ins.is_empty() {
+                continue;
+            }
+
+            let pair = ins.split("=").map(|s| s.trim()).collect::<Vec<&str>>();
+            if pair.len() != 2 {
+                eprintln!("\"{}\" is not formatted properly.", ins);
+                process::exit(1);
             }
             let key_word = match pair.first() {
                 Some(s) => s.to_owned(),
