@@ -1,44 +1,43 @@
-use std::error::Error;
+use std::{error::Error, net::SocketAddr};
 use thanos::config::Config;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 
-/// Address assigned to the Load Balancer
-const LB_ADDR: &str = "0.0.0.0:9999";
+async fn read_server(addr: SocketAddr, buf: &mut [u8]) -> Result<usize, Box<dyn Error>> {
+    let mut stream = TcpStream::connect(addr).await?;
+    stream.write_all(buf).await?;
+    let size = stream.read(buf).await?;
 
-/// Address assigned to the Server (can be multiple)
-const SR_ADDR: &str = "127.0.0.1:8888";
-
+    Ok(size)
+}
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // let lb_addr: SockAddr = LB_ADDR.parse::<SocketAddr>()?.into();
-    // let sr_addr: SockAddr = SR_ADDR.parse::<SocketAddr>()?.into();
-    let config = Config::get();
-    println!("Config: {:#?}", config);
-    let lb_listener = TcpListener::bind(LB_ADDR).await?;
+    let config = Config::get()?;
+    let lb_addr = format!("0.0.0.0:{}", config.self_port);
+    println!("Load Balancer running on port: {}", config.self_port);
+    let sr_addrs = config.servers;
+    println!("Serving Addrs: {:?}", sr_addrs);
+    let lb_listener = TcpListener::bind(lb_addr).await?;
     let (mut lb_stream, _) = lb_listener.accept().await?;
+
+    let mut idx = 0;
     loop {
         let mut buf = [0u8; 1024];
-        let size = lb_stream.read(&mut buf).await?;
+        let mut size = lb_stream.read(&mut buf).await?;
         if size == 0 {
             continue;
         }
-        let mut sr_stream = TcpStream::connect(SR_ADDR).await?;
-        let raw = String::from_utf8_lossy(&buf[..size]);
-        let content = raw.split('\n');
-        for line in content {
-            println!("{}", line);
-        }
-        sr_stream.write_all(&buf[..size]).await?;
 
-        // Reading from the Server
-        let size = sr_stream.read(&mut buf).await?;
-        let raw = String::from_utf8_lossy(&buf[..size]);
-        let content = raw.split('\n');
-        for line in content {
-            println!("{}", line);
+        if let Some(&sr_addr) = sr_addrs.get(idx) {
+            println!("addr: {}", sr_addr);
+            size = read_server(sr_addr, &mut buf).await?;
+            idx = if idx == sr_addrs.len() - 1 {
+                0
+            } else {
+                idx + 1
+            };
         }
         lb_stream.write_all(&buf[..size]).await?;
     }

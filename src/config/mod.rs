@@ -95,7 +95,7 @@ impl Config {
             let key = match match_word(key_word) {
                 Some(s) => s,
                 None => {
-                    panic!("Syntax error at or near {}", key_word);
+                    panic!("Syntax error at or near \"{}\"", key_word);
                 }
             };
             match key {
