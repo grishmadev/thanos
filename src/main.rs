@@ -1,11 +1,15 @@
-use std::{error::Error, net::SocketAddr};
-use thanos::config::Config;
+use std::{
+    error::Error,
+    io::{self, ErrorKind},
+    net::SocketAddr,
+};
+use thanos::{ThanosError, config::Config};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
 };
 
-async fn read_server(addr: SocketAddr, buf: &mut [u8]) -> Result<usize, Box<dyn Error>> {
+async fn read_server(addr: SocketAddr, buf: &mut [u8]) -> Result<usize, ThanosError> {
     let mut stream = TcpStream::connect(addr).await?;
     stream.write_all(buf).await?;
     let size = stream.read(buf).await?;
@@ -23,22 +27,48 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (mut lb_stream, _) = lb_listener.accept().await?;
 
     let mut idx = 0;
+    let idx_next = |n: &mut usize| {
+        *n = if *n == sr_addrs.len() - 1 { 0 } else { *n + 1 };
+    };
+    let mut buf = [0u8; 1024];
+    let mut reloaded = false;
+    let mut attempt = 0;
     loop {
-        let mut buf = [0u8; 1024];
-        let mut size = lb_stream.read(&mut buf).await?;
-        if size == 0 {
-            continue;
+        let mut size: usize = 0;
+        if !reloaded {
+            size = lb_stream.read(&mut buf).await?;
+            attempt = 0;
+            if size == 0 {
+                continue;
+            }
+        }
+        if attempt >= sr_addrs.len() {
+            eprintln!("All Servers Down!");
+            break;
         }
 
         if let Some(&sr_addr) = sr_addrs.get(idx) {
             println!("addr: {}", sr_addr);
-            size = read_server(sr_addr, &mut buf).await?;
-            idx = if idx == sr_addrs.len() - 1 {
-                0
-            } else {
-                idx + 1
+            attempt += 1;
+            match read_server(sr_addr, &mut buf).await {
+                Ok(s) => {
+                    size = s;
+                    println!("writing to load balancer: {}", size);
+                    idx_next(&mut idx);
+                    reloaded = false;
+                }
+                Err(e) => {
+                    println!("Error: {}", e);
+                    if e == ThanosError::ConnectionRefused {
+                        idx_next(&mut idx);
+                        reloaded = true;
+                        continue;
+                    }
+                    break;
+                }
             };
-        }
+        };
         lb_stream.write_all(&buf[..size]).await?;
     }
+    Ok(())
 }
