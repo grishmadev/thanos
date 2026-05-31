@@ -1,14 +1,6 @@
 pub mod keymatch;
 use core::panic;
-use std::{
-    env,
-    error::Error,
-    fs::File,
-    io::Read,
-    net::{Ipv4Addr, SocketAddr},
-    path::Path,
-    process,
-};
+use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
 
 use crate::config::keymatch::match_word;
 
