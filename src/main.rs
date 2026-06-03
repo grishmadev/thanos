@@ -1,5 +1,5 @@
 use std::sync::{Arc, atomic::Ordering};
-use thanos::{Backend, ThanosError, check_server_health, config::Config};
+use thanos::{Backend, ThanosError, check_server_health, config::Config, logs::p_err};
 use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
@@ -21,15 +21,18 @@ async fn main() -> Result<(), ThanosError> {
                 let current_idx =
                     backend.idx.fetch_add(1, Ordering::Relaxed) % backend.servers.len();
                 let current_server = backend.servers.get(current_idx).unwrap();
-                if current_server.is_healthy.load(Ordering::Relaxed) {
-                    if let Ok(mut sr_stream) = TcpStream::connect(current_server.addr).await {
-                        tokio::io::copy_bidirectional(&mut sr_stream, &mut lb_stream)
-                            .await
-                            .unwrap();
-                    } else {
-                        backend.idx.fetch_add(1, Ordering::Relaxed);
-                    }
+                if current_server.is_healthy.load(Ordering::Relaxed)
+                    && let Ok(mut sr_stream) = TcpStream::connect(current_server.addr).await
+                {
+                    if let Err(e) =
+                        tokio::io::copy_bidirectional(&mut sr_stream, &mut lb_stream).await
+                    {
+                        p_err(&format!("Copy Error: {}", e));
+                        continue;
+                    };
+                    break;
                 } else {
+                    p_err("Connection Refused.");
                 }
             }
         });

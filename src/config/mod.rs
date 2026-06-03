@@ -2,7 +2,7 @@ pub mod keymatch;
 use core::panic;
 use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
 
-use crate::config::keymatch::match_word;
+use crate::{config::keymatch::match_word, logs::p_err};
 
 /// Location of config file for Thanos
 fn get_config_path() -> String {
@@ -108,10 +108,13 @@ impl Config {
                 }
                 Key::Server => {
                     let addr = match pair.get(1) {
-                        Some(s) => s.to_owned(),
                         None => {
                             panic!("Servers not provided.")
                         }
+                        Some(s) if s.len() == 2 => {
+                            panic!("Servers not provided or configured wrong.")
+                        }
+                        Some(s) => s.to_owned(),
                     }
                     .trim();
                     if addr.starts_with("[") && addr.ends_with("]") {
@@ -128,10 +131,11 @@ impl Config {
                             let addr = match addr.parse::<SocketAddr>() {
                                 Ok(s) => s,
                                 Err(e) => {
-                                    panic!(
-                                        "Cannot parse {} . Make sure it is formatted.\n{}",
-                                        addr, e
-                                    );
+                                    p_err(&format!(
+                                        "Cannot parse {} . Make sure it is formatted.",
+                                        addr
+                                    ));
+                                    process::exit(1);
                                 }
                             };
                             result.servers.push(addr);
@@ -141,6 +145,10 @@ impl Config {
                     }
                 }
             }
+        }
+        if result.servers.is_empty() {
+            p_err("Servers not Provided.");
+            process::exit(1);
         }
         Ok(result)
     }

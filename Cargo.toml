@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.44"
 libc = "0.2.186"
 socket2 = { version = "0.6.3", features = ["all"] }
 tokio = { version = "1.52.3", features = ["full"] }

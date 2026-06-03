@@ -4,7 +4,7 @@ use std::{
     net::SocketAddr,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -15,6 +15,7 @@ use tokio::{
 };
 
 pub mod config;
+pub mod logs;
 
 #[derive(Debug)]
 pub struct Server {
@@ -124,6 +125,7 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
                 tokio::time::sleep(Duration::from_secs(2)).await;
                 let is_healthy = &current_server.is_healthy;
                 if attempts == threshold {
+                    println!("Declaring {} as unhealthy", addr);
                     is_healthy.store(false, Ordering::Relaxed);
                 }
                 let mut buf = [0u8; 1024];
@@ -131,7 +133,7 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
                     Ok(s) => s,
                     Err(e) => {
                         attempts += 1;
-                        eprintln!("Server {} is unhealthy.\n{}", addr, e);
+                        eprintln!("[{}] {}", addr, e);
                         continue;
                     }
                 };
@@ -143,14 +145,13 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
                             attempts += 1;
                             continue;
                         }
-                        println!("{} healthy", addr);
                         is_healthy.store(true, Ordering::Relaxed);
                         attempts = 0;
                     }
                     Err(e) => {
                         is_healthy.store(false, Ordering::Relaxed);
                         attempts += 1;
-                        eprintln!("Server {} is unhealthy.\n{}", addr, e);
+                        eprintln!("[{}] {}", addr, e);
                     }
                 };
             }
