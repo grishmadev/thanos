@@ -1,21 +1,19 @@
 use chrono::Utc;
 
-pub fn p_err(text: &str) {
-    let time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    eprintln!("[ {} ][ Error ] {text}", time);
+pub enum Log {
+    Ok,
+    Err,
+    Info,
+    Warn,
 }
 
-pub fn p_info(text: &str) {
-    let time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    eprintln!("[ {} ][ Info ] {text}", time);
-}
-
-pub fn p_warn(text: &str) {
-    let time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    eprintln!("[ {} ][ Warn ] {text}", time);
-}
-
-pub fn p_suc(text: &str) {
-    let time = Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-    eprintln!("[ {} ][ OK ] {text}", time);
+pub fn plog(text: &str, msg_type: Log) {
+    let time = Utc::now().time();
+    let msg = match msg_type {
+        Log::Ok => "OK",
+        Log::Err => "Error",
+        Log::Info => "Info",
+        Log::Warn => "Warn",
+    };
+    eprintln!("[ {time} ][ {msg} ] {text}");
 }

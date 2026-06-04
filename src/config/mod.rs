@@ -2,7 +2,10 @@ pub mod keymatch;
 use core::panic;
 use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
 
-use crate::{config::keymatch::match_word, logs::p_err};
+use crate::{
+    config::keymatch::{match_method, match_word},
+    logs::{Log, plog},
+};
 
 /// Location of config file for Thanos
 fn get_config_path() -> String {
@@ -18,20 +21,27 @@ fn get_config_path() -> String {
 pub enum Key {
     Port,
     Server,
+    Method,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Method {
+    Tproxy,
+    Normal,
 }
 
 #[derive(Debug)]
 pub struct Config {
     pub servers: Vec<SocketAddr>,
     pub self_port: u16,
-    pub method: String,
+    pub method: Method,
 }
 impl Default for Config {
     fn default() -> Self {
         Self {
             self_port: 8080,
             servers: vec![],
-            method: String::new(),
+            method: Method::Normal,
         }
     }
 }
@@ -130,11 +140,14 @@ impl Config {
                                 .to_owned();
                             let addr = match addr.parse::<SocketAddr>() {
                                 Ok(s) => s,
-                                Err(e) => {
-                                    p_err(&format!(
-                                        "Cannot parse {} . Make sure it is formatted.",
-                                        addr
-                                    ));
+                                Err(_) => {
+                                    plog(
+                                        &format!(
+                                            "Cannot parse {} . Make sure it is formatted.",
+                                            addr
+                                        ),
+                                        Log::Err,
+                                    );
                                     process::exit(1);
                                 }
                             };
@@ -144,10 +157,26 @@ impl Config {
                         panic!("Server Addresses should be contained in \"[\"\"]\"");
                     }
                 }
+                Key::Method => {
+                    let method = match pair.get(1) {
+                        Some(s) => s.to_owned(),
+                        None => {
+                            panic!("Method not provided.")
+                        }
+                    }
+                    .trim_matches('"')
+                    .to_owned();
+                    let method = match match_method(&method) {
+                        Some(s) => s,
+                        None => Method::Normal,
+                    };
+
+                    result.method = method;
+                }
             }
         }
         if result.servers.is_empty() {
-            p_err("Servers not Provided.");
+            plog("Servers not Provided.", Log::Err);
             process::exit(1);
         }
         Ok(result)
