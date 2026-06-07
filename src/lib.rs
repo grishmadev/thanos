@@ -1,19 +1,19 @@
 use std::{
+    collections::VecDeque,
     error::Error,
-    fmt, io,
+    fmt::{self, Debug},
+    io,
     net::SocketAddr,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
-        mpsc::{self, RecvError, SendError},
     },
     time::Duration,
 };
 
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpSocket, TcpStream},
-    sync::mpsc,
+    net::{TcpListener, TcpStream},
 };
 
 pub mod config;
@@ -22,13 +22,33 @@ pub mod logs;
 #[derive(Debug)]
 pub struct Server {
     pub addr: SocketAddr,
+    pub pool: Mutex<VecDeque<TcpStream>>,
     pub is_healthy: AtomicBool,
+}
+
+impl Server {
+    pub async fn acquire(&self) -> TcpStream {
+        let stream = {
+            let mut pool = self.pool.lock().unwrap();
+            pool.pop_front()
+        };
+        match stream {
+            Some(s) => s,
+            None => TcpStream::connect(self.addr).await.unwrap(),
+        }
+    }
+
+    pub async fn release(&self, stream: TcpStream) {
+        let mut pool = self.pool.lock().unwrap();
+        pool.push_back(stream);
+    }
 }
 
 impl From<SocketAddr> for Server {
     fn from(server: SocketAddr) -> Self {
         Self {
             addr: server,
+            pool: Mutex::new(VecDeque::new()),
             is_healthy: AtomicBool::new(true),
         }
     }
@@ -46,6 +66,7 @@ impl From<Vec<SocketAddr>> for Backend {
         for addr in servers {
             res.push(Server {
                 is_healthy: AtomicBool::new(true),
+                pool: Mutex::new(VecDeque::new()),
                 addr,
             });
         }
@@ -87,26 +108,6 @@ impl From<io::Error> for ThanosError {
             io::ErrorKind::ConnectionRefused => ThanosError::ConnectionRefused,
             s => ThanosError::Other(s.to_string()),
         }
-    }
-}
-
-pub struct Pool {
-    sender: mpsc::Sender<TcpStream>,
-    receiver: mpsc::Receiver<TcpStream>,
-}
-
-impl Pool {
-    fn new() -> Self {
-        let (sender, receiver) = mpsc::channel::<TcpStream>();
-        Self { sender, receiver }
-    }
-
-    fn acquire(self) -> Result<TcpStream, RecvError> {
-        self.receiver.recv()
-    }
-
-    fn release(self, stream: TcpStream) -> Result<(), SendError<TcpStream>> {
-        self.sender.send(stream)
     }
 }
 

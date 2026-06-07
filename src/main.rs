@@ -9,10 +9,7 @@ use thanos::{
     config::{Config, Method},
     logs::{Log, plog},
 };
-use tokio::{
-    io::BufReader,
-    net::{TcpListener, TcpSocket, TcpStream},
-};
+use tokio::net::{TcpListener, TcpSocket, TcpStream};
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
@@ -52,13 +49,7 @@ async fn main() -> Result<(), ThanosError> {
                 _ = sock.set_reuse_address(true);
                 let client_addr = SockAddr::from(SocketAddr::new(client_addr.ip(), 0));
                 _ = sock.bind(&client_addr);
-                let mut sr_stream = match TcpStream::connect(current_server.addr).await {
-                    Ok(s) => s,
-                    Err(e) => {
-                        plog(&e.to_string(), Log::Err);
-                        return;
-                    }
-                };
+                let mut sr_stream = current_server.acquire().await;
                 _ = sr_stream.set_nodelay(true);
 
                 _ = tokio::io::copy_bidirectional_with_sizes(
@@ -85,13 +76,7 @@ async fn main() -> Result<(), ThanosError> {
                     backend_clone.idx.fetch_add(1, Ordering::Relaxed) % backend_clone.servers.len();
 
                 let current_server = backend_clone.servers.get(current_idx).unwrap();
-                let mut sr_stream = match TcpStream::connect(current_server.addr).await {
-                    Ok(s) => s,
-                    Err(e) => {
-                        plog(&e.to_string(), Log::Err);
-                        return;
-                    }
-                };
+                let mut sr_stream = current_server.acquire().await;
                 _ = sr_stream.set_nodelay(true);
                 _ = tokio::io::copy_bidirectional_with_sizes(
                     &mut sr_stream,
@@ -100,17 +85,6 @@ async fn main() -> Result<(), ThanosError> {
                     4096,
                 )
                 .await;
-
-                // let (lb_read, mut lb_write) = lb_stream.into_split();
-                // let (sr_read, mut sr_write) = sr_stream.into_split();
-                // let mut lb_read_buf = BufReader::with_capacity(4096, lb_read);
-                // let mut sr_read_buf = BufReader::with_capacity(4096, sr_read);
-                //
-                // let cl_to_sr = tokio::io::copy_buf(&mut lb_read_buf, &mut sr_write);
-                // let sr_to_cl = tokio::io::copy_buf(&mut sr_read_buf, &mut lb_write);
-                // if let Err(e) = tokio::try_join!(cl_to_sr, sr_to_cl) {
-                //     plog(&format!("Connection ended with error: {}", e), Log::Err);
-                // }
             });
         }
     };
