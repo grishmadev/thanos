@@ -8,3 +8,4 @@ chrono = "0.4.44"
 libc = "0.2.186"
 socket2 = { version = "0.6.3", features = ["all"] }
 tokio = { version = "1.52.3", features = ["full"] }
+mimalloc = "0.1.52"

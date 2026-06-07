@@ -5,13 +5,15 @@ use std::{
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
+        mpsc::{self, RecvError, SendError},
     },
     time::Duration,
 };
 
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::{TcpListener, TcpSocket, TcpStream},
+    sync::mpsc,
 };
 
 pub mod config;
@@ -85,6 +87,26 @@ impl From<io::Error> for ThanosError {
             io::ErrorKind::ConnectionRefused => ThanosError::ConnectionRefused,
             s => ThanosError::Other(s.to_string()),
         }
+    }
+}
+
+pub struct Pool {
+    sender: mpsc::Sender<TcpStream>,
+    receiver: mpsc::Receiver<TcpStream>,
+}
+
+impl Pool {
+    fn new() -> Self {
+        let (sender, receiver) = mpsc::channel::<TcpStream>();
+        Self { sender, receiver }
+    }
+
+    fn acquire(self) -> Result<TcpStream, RecvError> {
+        self.receiver.recv()
+    }
+
+    fn release(self, stream: TcpStream) -> Result<(), SendError<TcpStream>> {
+        self.sender.send(stream)
     }
 }
 

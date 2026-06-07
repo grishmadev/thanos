@@ -1,0 +1,92 @@
+// running 3 node servers
+hey -n 1000000 -c 100 http://localhost:8080
+
+Summary:
+  Total:	84.0950 secs
+  Slowest:	0.2421 secs
+  Fastest:	0.0001 secs
+  Average:	0.0084 secs
+  Requests/sec:	11891.3086
+  
+  Total data:	52000000 bytes
+  Size/request:	52 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.024 [976024]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.049 [22600]	|■
+  0.073 [1257]	|
+  0.097 [25]	|
+  0.121 [54]	|
+  0.145 [0]	|
+  0.170 [13]	|
+  0.194 [22]	|
+  0.218 [0]	|
+  0.242 [4]	|
+
+
+Latency distribution:
+  10% in 0.0026 secs
+  25% in 0.0044 secs
+  50% in 0.0070 secs
+  75% in 0.0106 secs
+  90% in 0.0156 secs
+  95% in 0.0196 secs
+  99% in 0.0304 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.2421 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0112 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0326 secs
+  resp wait:	0.0079 secs, 0.0001 secs, 0.2368 secs
+  resp read:	0.0004 secs, 0.0000 secs, 0.2309 secs
+
+Status code distribution:
+  [200]	1000000 responses
+
+
+// running 4 node servers
+hey -n 1000000 -c 100 http://localhost:8080
+
+Summary:
+  Total:	78.0451 secs
+  Slowest:	0.0855 secs
+  Fastest:	0.0001 secs
+  Average:	0.0078 secs
+  Requests/sec:	12813.1100
+  
+  Total data:	52000000 bytes
+  Size/request:	52 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.009 [676441]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.017 [266442]	|■■■■■■■■■■■■■■■■
+  0.026 [44373]	|■■■
+  0.034 [9516]	|■
+  0.043 [2266]	|
+  0.051 [638]	|
+  0.060 [172]	|
+  0.068 [122]	|
+  0.077 [17]	|
+  0.085 [12]	|
+
+
+Latency distribution:
+  10% in 0.0025 secs
+  25% in 0.0042 secs
+  50% in 0.0066 secs
+  75% in 0.0099 secs
+  90% in 0.0144 secs
+  95% in 0.0179 secs
+  99% in 0.0272 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0855 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0106 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0406 secs
+  resp wait:	0.0073 secs, 0.0001 secs, 0.0825 secs
+  resp read:	0.0003 secs, 0.0000 secs, 0.0625 secs
+
+Status code distribution:
+  [200]	1000000 responses
