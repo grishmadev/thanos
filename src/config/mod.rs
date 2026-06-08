@@ -56,11 +56,22 @@ impl Config {
         File::open(&config_path)
             .expect("Unable to open config file")
             .read_to_string(&mut data)?;
+        let mut filtered_data = String::new();
+        for line in data.lines() {
+            if let Some(cmt_idx) = line.find('#') {
+                filtered_data.push_str(&line[..cmt_idx]);
+            } else {
+                filtered_data.push_str(line);
+            }
+            filtered_data.push('\n');
+        }
 
-        let data = data
+        let data = filtered_data
             .split(";")
             .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
             .collect::<Vec<String>>();
+
         Ok(data)
     }
     pub fn get() -> Result<Self, Box<dyn Error>> {
@@ -108,6 +119,7 @@ impl Config {
                             panic!("Port missing.");
                         }
                     };
+                    println!("Port: {}", port);
                     let port = match port.parse::<u16>() {
                         Ok(s) => s,
                         Err(e) => {

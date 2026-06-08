@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use socket2::SockRef;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -18,37 +19,45 @@ use tokio::{
 
 pub mod config;
 pub mod logs;
+pub mod proxy;
 
 #[derive(Debug)]
 pub struct Server {
     pub addr: SocketAddr,
-    pub pool: Mutex<VecDeque<TcpStream>>,
+    // pub pool: Mutex<VecDeque<TcpStream>>,
     pub is_healthy: AtomicBool,
 }
 
-impl Server {
-    pub async fn acquire(&self) -> TcpStream {
-        let stream = {
-            let mut pool = self.pool.lock().unwrap();
-            pool.pop_front()
-        };
-        match stream {
-            Some(s) => s,
-            None => TcpStream::connect(self.addr).await.unwrap(),
-        }
-    }
-
-    pub async fn release(&self, stream: TcpStream) {
-        let mut pool = self.pool.lock().unwrap();
-        pool.push_back(stream);
-    }
-}
+// impl Server {
+//     pub async fn acquire(&self) -> TcpStream {
+//         let stream = {
+//             let mut pool = self.pool.lock().unwrap();
+//             pool.pop_front()
+//         };
+//         match stream {
+//             Some(s) => {
+//                 println!("Reusing connection to {}", self.addr);
+//                 s
+//             }
+//             None => {
+//                 println!("Creating new connection to {}", self.addr);
+//                 TcpStream::connect(self.addr).await.unwrap()
+//             }
+//         }
+//     }
+//
+//     pub fn release(&self, stream: TcpStream) {
+//         println!("release called");
+//         let mut pool = self.pool.lock().unwrap();
+//         pool.push_back(stream);
+//     }
+// }
 
 impl From<SocketAddr> for Server {
     fn from(server: SocketAddr) -> Self {
         Self {
             addr: server,
-            pool: Mutex::new(VecDeque::new()),
+            // pool: Mutex::new(VecDeque::new()),
             is_healthy: AtomicBool::new(true),
         }
     }
@@ -66,7 +75,7 @@ impl From<Vec<SocketAddr>> for Backend {
         for addr in servers {
             res.push(Server {
                 is_healthy: AtomicBool::new(true),
-                pool: Mutex::new(VecDeque::new()),
+                // pool: Mutex::new(VecDeque::new()),
                 addr,
             });
         }
@@ -76,6 +85,7 @@ impl From<Vec<SocketAddr>> for Backend {
         }
     }
 }
+
 impl From<Vec<Server>> for Backend {
     fn from(servers: Vec<Server>) -> Self {
         Self {
