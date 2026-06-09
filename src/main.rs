@@ -39,7 +39,6 @@ async fn main() -> Result<(), ThanosError> {
 
         tokio::spawn(async move {
             let lb_listener: TcpListener = lb_sock.listen(1024).unwrap();
-            // let lb_listener = TcpListener::from_std(std_list).unwrap();
             if config.method == Method::Tproxy {
                 if let Err(e) = run_tproxy_method(lb_listener, backend).await {
                     plog(&e.to_string(), Log::Err);
