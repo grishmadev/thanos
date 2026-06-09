@@ -1,17 +1,15 @@
 use std::{
-    collections::VecDeque,
     error::Error,
     fmt::{self, Debug},
     io,
     net::SocketAddr,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
-use socket2::SockRef;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
