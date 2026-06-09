@@ -19,6 +19,8 @@ pub mod config;
 pub mod logs;
 pub mod proxy;
 
+pub const DEFAULT_PORT: u16 = 8080;
+
 #[derive(Debug)]
 pub struct Server {
     pub addr: SocketAddr,

@@ -1,20 +1,27 @@
 pub mod keymatch;
 use core::panic;
-use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
+use std::{default, env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
 
 use crate::{
-    config::keymatch::{match_method, match_word},
+    DEFAULT_PORT,
+    config::{
+        self,
+        keymatch::{match_method, match_word},
+    },
     logs::{Log, plog},
 };
 
 /// Location of config file for Thanos
-fn get_config_path() -> String {
+pub fn get_config_path(provided: Option<String>) -> String {
     let home = match env::var("HOME") {
         Ok(s) => s,
         Err(_) => "/home".to_string(),
     };
     let mut path = home;
-    path.push_str("/.config/thanos/thanos.conf");
+    path.push_str(&match provided {
+        Some(s) => s,
+        None => "/.config/thanos/thanos.conf".to_string(),
+    });
     path
 }
 
@@ -22,6 +29,7 @@ pub enum Key {
     Port,
     Server,
     Method,
+    Core,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -36,6 +44,25 @@ pub struct Config {
     pub self_port: u16,
     pub method: Method,
 }
+
+pub struct CliConfig {
+    pub servers: Option<Vec<SocketAddr>>,
+    pub self_port: Option<u16>,
+    pub method: Option<Method>,
+    pub core: Option<u64>,
+}
+
+impl Default for CliConfig {
+    fn default() -> Self {
+        Self {
+            servers: None,
+            self_port: None,
+            method: None,
+            core: None,
+        }
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -46,14 +73,13 @@ impl Default for Config {
     }
 }
 impl Config {
-    pub fn read_file() -> Result<Vec<String>, Box<dyn Error>> {
-        let config_path = get_config_path();
-        if !Path::new(&config_path).exists() {
+    pub fn read_file(config_path: &str) -> Result<Vec<String>, Box<dyn Error>> {
+        if !Path::new(config_path).exists() {
             return Err("Failed to read config file.\nUsing default settings.".into());
         };
 
         let mut data = String::new();
-        File::open(&config_path)
+        File::open(config_path)
             .expect("Unable to open config file")
             .read_to_string(&mut data)?;
         let mut filtered_data = String::new();
@@ -74,9 +100,9 @@ impl Config {
 
         Ok(data)
     }
-    pub fn get() -> Result<Self, Box<dyn Error>> {
+    pub fn get(config: CliConfig, path: &str) -> Result<Self, Box<dyn Error>> {
         let mut result = Self::default();
-        let data = match Config::read_file() {
+        let data = match Config::read_file(path) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("{}", e);
@@ -185,12 +211,27 @@ impl Config {
 
                     result.method = method;
                 }
+                Key::Core => {}
             }
         }
         if result.servers.is_empty() {
             plog("Servers not Provided.", Log::Err);
             process::exit(1);
         }
+        if let Some(s) = config.servers
+            && !s.is_empty()
+        {
+            result.servers = s;
+        }
+
+        if let Some(s) = config.self_port {
+            result.self_port = s;
+        }
+
+        if let Some(s) = config.method {
+            result.method = s;
+        }
+
         Ok(result)
     }
 }

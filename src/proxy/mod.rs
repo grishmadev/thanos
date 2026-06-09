@@ -7,7 +7,8 @@ use socket2::{SockAddr, SockRef};
 use tokio::net::{TcpListener, TcpSocket, TcpStream};
 
 use crate::{
-    Backend,
+    Backend, ThanosError, check_server_health,
+    config::{Config, Method},
     logs::{Log, plog},
 };
 
@@ -88,4 +89,35 @@ pub async fn run_normal_proxy(
             .await;
         });
     }
+}
+
+pub async fn run_main(config: Config) -> Result<(), ThanosError> {
+    println!("Config: {:#?}", config);
+    let lb_addr: SocketAddr = format!("0.0.0.0:{}", config.self_port).parse().unwrap();
+    let cores = num_cpus::get_physical();
+    let backend = Arc::new(Backend::from(config.servers));
+    check_server_health(Arc::clone(&backend)).await?;
+    for _ in 0..cores {
+        let backend = Arc::clone(&backend);
+        let lb_sock = TcpSocket::new_v4()?;
+        let lb_sockref = SockRef::from(&lb_sock);
+
+        lb_sockref.set_reuse_address(true)?;
+        lb_sockref.set_reuse_port(true)?;
+        lb_sockref.bind(&SockAddr::from(lb_addr))?;
+
+        tokio::spawn(async move {
+            let lb_listener: TcpListener = lb_sock.listen(1024).unwrap();
+            if config.method == Method::Tproxy {
+                if let Err(e) = run_tproxy_method(lb_listener, backend).await {
+                    plog(&e.to_string(), Log::Err);
+                };
+            } else {
+                if let Err(e) = run_normal_proxy(lb_listener, backend).await {
+                    plog(&e.to_string(), Log::Err);
+                }
+            }
+        });
+    }
+    Ok(())
 }

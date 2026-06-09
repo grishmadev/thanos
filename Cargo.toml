@@ -10,3 +10,4 @@ socket2 = { version = "0.6.3", features = ["all"] }
 tokio = { version = "1.52.3", features = ["full"] }
 mimalloc = "0.1.52"
 num_cpus = "1.17.0"
+clap = { version = "4.6.1", features = ["derive"] }
