@@ -1,45 +1,136 @@
-// running 3 node servers
-hey -n 1000000 -c 100 http://localhost:9000
+// running 3 rust servers
+thanos> hey -n 1000000 -c 100 http://localhost:9000
 
 Summary:
-  Total:	48.3841 secs
-  Slowest:	0.1063 secs
+  Total:	47.9837 secs
+  Slowest:	0.0934 secs
   Fastest:	0.0001 secs
   Average:	0.0048 secs
-  Requests/sec:	20667.9475
+  Requests/sec:	20840.4296
   
   Total data:	11000000 bytes
   Size/request:	11 bytes
 
 Response time histogram:
   0.000 [1]	|
-  0.011 [951119]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-  0.021 [46271]	|■■
-  0.032 [1872]	|
-  0.043 [460]	|
-  0.053 [78]	|
-  0.064 [30]	|
-  0.074 [32]	|
-  0.085 [46]	|
-  0.096 [16]	|
-  0.106 [75]	|
+  0.009 [922391]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.019 [73483]	|■■■
+  0.028 [3313]	|
+  0.037 [568]	|
+  0.047 [134]	|
+  0.056 [27]	|
+  0.065 [39]	|
+  0.075 [11]	|
+  0.084 [9]	|
+  0.093 [24]	|
 
 
 Latency distribution:
-  10% in 0.0012 secs
-  25% in 0.0025 secs
+  10% in 0.0011 secs
+  25% in 0.0024 secs
   50% in 0.0043 secs
   75% in 0.0064 secs
   90% in 0.0088 secs
-  95% in 0.0106 secs
-  99% in 0.0158 secs
+  95% in 0.0105 secs
+  99% in 0.0156 secs
 
 Details (average, fastest, slowest):
-  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.1063 secs
-  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0098 secs
-  req write:	0.0000 secs, 0.0000 secs, 0.0606 secs
-  resp wait:	0.0044 secs, 0.0000 secs, 0.0897 secs
-  resp read:	0.0003 secs, 0.0000 secs, 0.0994 secs
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0934 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0330 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0730 secs
+  resp wait:	0.0043 secs, 0.0000 secs, 0.0861 secs
+  resp read:	0.0003 secs, 0.0000 secs, 0.0828 secs
+
+Status code distribution:
+  [200]	1000000 responses
+# haproxy
+haproxy> hey -n 1000000 -c 100 http://localhost:9000
+
+Summary:
+  Total:	49.9404 secs
+  Slowest:	0.0770 secs
+  Fastest:	0.0001 secs
+  Average:	0.0050 secs
+  Requests/sec:	20023.8529
+  
+  Total data:	11000000 bytes
+  Size/request:	11 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.008 [823587]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.015 [163059]	|■■■■■■■■
+  0.023 [10817]	|■
+  0.031 [1714]	|
+  0.039 [495]	|
+  0.046 [130]	|
+  0.054 [108]	|
+  0.062 [56]	|
+  0.069 [1]	|
+  0.077 [32]	|
+
+
+Latency distribution:
+  10% in 0.0011 secs
+  25% in 0.0024 secs
+  50% in 0.0044 secs
+  75% in 0.0067 secs
+  90% in 0.0094 secs
+  95% in 0.0113 secs
+  99% in 0.0166 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0770 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0112 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0424 secs
+  resp wait:	0.0046 secs, 0.0001 secs, 0.0745 secs
+  resp read:	0.0002 secs, 0.0000 secs, 0.0682 secs
+
+Status code distribution:
+  [200]	1000000 responses
+
+# envoy
+hey -n 1000000 -c 100 http://localhost:9000
+
+Summary:
+  Total:	55.4017 secs
+  Slowest:	0.0970 secs
+  Fastest:	0.0001 secs
+  Average:	0.0055 secs
+  Requests/sec:	18049.9818
+  
+  Total data:	11000000 bytes
+  Size/request:	11 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.010 [897587]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.019 [93159]	|■■■■
+  0.029 [7237]	|
+  0.039 [1453]	|
+  0.049 [370]	|
+  0.058 [107]	|
+  0.068 [51]	|
+  0.078 [7]	|
+  0.087 [14]	|
+  0.097 [14]	|
+
+
+Latency distribution:
+  10% in 0.0018 secs
+  25% in 0.0030 secs
+  50% in 0.0048 secs
+  75% in 0.0071 secs
+  90% in 0.0099 secs
+  95% in 0.0121 secs
+  99% in 0.0190 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0970 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0365 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0171 secs
+  resp wait:	0.0052 secs, 0.0001 secs, 0.0772 secs
+  resp read:	0.0002 secs, 0.0000 secs, 0.0338 secs
 
 Status code distribution:
   [200]	1000000 responses

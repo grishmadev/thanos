@@ -1,13 +1,9 @@
 pub mod keymatch;
 use core::panic;
-use std::{default, env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
+use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
 
 use crate::{
-    DEFAULT_PORT,
-    config::{
-        self,
-        keymatch::{match_method, match_word},
-    },
+    config::keymatch::{match_method, match_word},
     logs::{Log, plog},
 };
 
@@ -30,6 +26,7 @@ pub enum Key {
     Server,
     Method,
     Core,
+    Unknown,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -43,6 +40,7 @@ pub struct Config {
     pub servers: Vec<SocketAddr>,
     pub self_port: u16,
     pub method: Method,
+    pub core: u64,
 }
 
 pub struct CliConfig {
@@ -68,6 +66,7 @@ impl Default for Config {
         Self {
             self_port: 8080,
             servers: vec![],
+            core: 1,
             method: Method::Normal,
         }
     }
@@ -131,13 +130,7 @@ impl Config {
                 None => continue,
             };
 
-            let key = match match_word(key_word) {
-                Some(s) => s,
-                None => {
-                    panic!("Syntax error at or near \"{}\"", key_word);
-                }
-            };
-            match key {
+            match match_word(key_word) {
                 Key::Port => {
                     let port = match pair.get(1) {
                         Some(s) => s.to_owned(),
@@ -181,7 +174,7 @@ impl Config {
                                 Err(_) => {
                                     plog(
                                         &format!(
-                                            "Cannot parse {} . Make sure it is formatted.",
+                                            "Cannot parse \"{}\" . Make sure it is formatted.",
                                             addr
                                         ),
                                         Log::Err,
@@ -192,14 +185,19 @@ impl Config {
                             result.servers.push(addr);
                         }
                     } else {
-                        panic!("Server Addresses should be contained in \"[\"\"]\"");
+                        plog(
+                            "Server Addresses should be contained in \"[\"\"]\"",
+                            Log::Err,
+                        );
+                        process::exit(1);
                     }
                 }
                 Key::Method => {
                     let method = match pair.get(1) {
                         Some(s) => s.to_owned(),
                         None => {
-                            panic!("Method not provided.")
+                            plog("Method not provided, Using Default.", Log::Warn);
+                            "normal"
                         }
                     }
                     .trim_matches('"')
@@ -211,27 +209,43 @@ impl Config {
 
                     result.method = method;
                 }
-                Key::Core => {}
+                Key::Core => {
+                    let core = if let Some(c) = pair.get(1)
+                        && let Ok(parsed_c) = c.parse::<u64>()
+                    {
+                        parsed_c
+                    } else {
+                        plog("No Cores Provided, Assigning Physical Cores", Log::Warn);
+                        num_cpus::get_physical() as u64
+                    };
+                    result.core = core;
+                }
+                Key::Unknown => {
+                    plog(&format!("Unknown Key \"{}\"", pair[0]), Log::Warn);
+                }
             }
+        }
+        if let Some(servers) = config.servers
+            && !servers.is_empty()
+        {
+            result.servers = servers;
+        }
+
+        if let Some(port) = config.self_port {
+            result.self_port = port;
+        }
+
+        if let Some(method) = config.method {
+            result.method = method;
+        }
+        if let Some(core) = config.core {
+            result.core = core;
         }
         if result.servers.is_empty() {
             plog("Servers not Provided.", Log::Err);
             process::exit(1);
         }
-        if let Some(s) = config.servers
-            && !s.is_empty()
-        {
-            result.servers = s;
-        }
-
-        if let Some(s) = config.self_port {
-            result.self_port = s;
-        }
-
-        if let Some(s) = config.method {
-            result.method = s;
-        }
-
+        println!("Configuration set to:\n{:#?}", result);
         Ok(result)
     }
 }

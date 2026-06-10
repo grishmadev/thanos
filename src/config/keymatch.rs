@@ -10,14 +10,14 @@ pub fn match_key(key: Key) -> Option<String> {
     Some(word.to_string())
 }
 
-pub fn match_word(word: &str) -> Option<Key> {
-    let key = match word {
+pub fn match_word(word: &str) -> Key {
+    match word {
         "port" => Key::Port,
         "server" | "servers" => Key::Server,
         "method" => Key::Method,
-        _ => return None,
-    };
-    Some(key)
+        "core" | "cores" => Key::Core,
+        _ => Key::Unknown,
+    }
 }
 
 pub fn match_method(method: &str) -> Option<Method> {

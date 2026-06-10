@@ -42,13 +42,10 @@ async fn main() -> Result<(), ThanosError> {
     let mut def_conf = CliConfig::default();
     let path: String;
     if args.config.is_empty() {
-        def_conf.method = match match_method(&args.method) {
-            Some(s) => s,
-            None => Method::Normal,
-        };
+        def_conf.method = match_method(&args.method);
         def_conf.servers = Some(args.server);
-        def_conf.self_port = args.port;
-        path = get_config_path(None)
+        def_conf.self_port = Some(args.port);
+        path = get_config_path(None);
     } else {
         path = args.config;
     };

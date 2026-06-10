@@ -190,6 +190,5 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
             }
         });
     }
-
     Ok(())
 }

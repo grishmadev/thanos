@@ -92,12 +92,10 @@ pub async fn run_normal_proxy(
 }
 
 pub async fn run_main(config: Config) -> Result<(), ThanosError> {
-    println!("Config: {:#?}", config);
     let lb_addr: SocketAddr = format!("0.0.0.0:{}", config.self_port).parse().unwrap();
-    let cores = num_cpus::get_physical();
     let backend = Arc::new(Backend::from(config.servers));
     check_server_health(Arc::clone(&backend)).await?;
-    for _ in 0..cores {
+    for _ in 0..config.core {
         let backend = Arc::clone(&backend);
         let lb_sock = TcpSocket::new_v4()?;
         let lb_sockref = SockRef::from(&lb_sock);
