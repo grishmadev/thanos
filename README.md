@@ -1,6 +1,6 @@
 # Thanos
 
-![Dialogue](assets/thanos.gif)
+![Dialogue](assets/thanos.jpg)
 
 An L4 Load Balancer in the making.
 
