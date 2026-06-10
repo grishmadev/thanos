@@ -17,11 +17,23 @@ Thanos has mainly 2 methods of proxying incoming requests.
   - Creates a Transparent Socket connection with Client's IP
   - Server receives Client's IP as normal.
   - Useful when Server needs Clients' IP for business logic.
-  - Faster
 
 ### Memory Allocator
 
 Thanos uses [MiMalloc](https://github.com/microsoft/mimalloc) for its memory allocator for faster operations.
+
+## Performance \(Dual Core CPU | Intel Celeron\)
+
+```sh
+# Tested with hey benchmark tool
+hey -n 1000000 -c 100 <proxy port>
+```
+
+| Proxy     | RPS     | Maximum Response Time | Average Response Time |
+| --------- | ------- | --------------------- | --------------------- |
+| `Thanos`  | ~ 20800 | ~ 0.0934 s            | ~ 0.0048 s            |
+| `HAProxy` | ~ 20500 | ~ 0.0770 s            | ~ 0.0050 s            |
+| `Envoy`   | ~ 18000 | ~ 0.0970 s            | ~ 0.0055 s            |
 
 ## Features
 
