@@ -24,40 +24,16 @@ pub const DEFAULT_PORT: u16 = 8080;
 #[derive(Debug)]
 pub struct Server {
     pub addr: SocketAddr,
-    // pub pool: Mutex<VecDeque<TcpStream>>,
     pub is_healthy: AtomicBool,
+    // total connections, idk how to write it in short
+    pub ttlcn: AtomicUsize,
 }
-
-// impl Server {
-//     pub async fn acquire(&self) -> TcpStream {
-//         let stream = {
-//             let mut pool = self.pool.lock().unwrap();
-//             pool.pop_front()
-//         };
-//         match stream {
-//             Some(s) => {
-//                 println!("Reusing connection to {}", self.addr);
-//                 s
-//             }
-//             None => {
-//                 println!("Creating new connection to {}", self.addr);
-//                 TcpStream::connect(self.addr).await.unwrap()
-//             }
-//         }
-//     }
-//
-//     pub fn release(&self, stream: TcpStream) {
-//         println!("release called");
-//         let mut pool = self.pool.lock().unwrap();
-//         pool.push_back(stream);
-//     }
-// }
 
 impl From<SocketAddr> for Server {
     fn from(server: SocketAddr) -> Self {
         Self {
             addr: server,
-            // pool: Mutex::new(VecDeque::new()),
+            ttlcn: AtomicUsize::new(0),
             is_healthy: AtomicBool::new(true),
         }
     }
@@ -75,7 +51,7 @@ impl From<Vec<SocketAddr>> for Backend {
         for addr in servers {
             res.push(Server {
                 is_healthy: AtomicBool::new(true),
-                // pool: Mutex::new(VecDeque::new()),
+                ttlcn: AtomicUsize::new(0),
                 addr,
             });
         }

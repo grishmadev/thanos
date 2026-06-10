@@ -3,7 +3,7 @@ use core::panic;
 use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
 
 use crate::{
-    config::keymatch::{match_method, match_word},
+    config::keymatch::{match_method, match_strategy, match_word},
     logs::{Log, plog},
 };
 
@@ -26,6 +26,7 @@ pub enum Key {
     Server,
     Method,
     Core,
+    Strategy,
     Unknown,
 }
 
@@ -35,12 +36,19 @@ pub enum Method {
     Normal,
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum Strategy {
+    RoundRobin,
+    LeastConnections,
+}
+
 #[derive(Debug)]
 pub struct Config {
     pub servers: Vec<SocketAddr>,
     pub self_port: u16,
     pub method: Method,
     pub core: u64,
+    pub strategy: Strategy,
 }
 
 pub struct CliConfig {
@@ -48,6 +56,7 @@ pub struct CliConfig {
     pub self_port: Option<u16>,
     pub method: Option<Method>,
     pub core: Option<u64>,
+    pub strategy: Option<Strategy>,
 }
 
 impl Default for CliConfig {
@@ -57,6 +66,7 @@ impl Default for CliConfig {
             self_port: None,
             method: None,
             core: None,
+            strategy: None,
         }
     }
 }
@@ -68,6 +78,7 @@ impl Default for Config {
             servers: vec![],
             core: 1,
             method: Method::Normal,
+            strategy: Strategy::RoundRobin,
         }
     }
 }
@@ -220,6 +231,27 @@ impl Config {
                     };
                     result.core = core;
                 }
+                Key::Strategy => {
+                    let strategy = if let Some(word) = pair.get(1) {
+                        match match_strategy(word.to_owned()) {
+                            Some(stgy) => stgy,
+                            None => {
+                                plog(
+                                    &format!(
+                                        "Unknown Strategy \"{}\"\nYou can only choose between \"roundrobin\" and \"leastconnections\"",
+                                        word
+                                    ),
+                                    Log::Err,
+                                );
+                                process::exit(1);
+                            }
+                        }
+                    } else {
+                        plog("\"strategy\" is not formatted properly.", Log::Err);
+                        process::exit(1);
+                    };
+                    result.strategy = strategy;
+                }
                 Key::Unknown => {
                     plog(&format!("Unknown Key \"{}\"", pair[0]), Log::Warn);
                 }
@@ -240,6 +272,9 @@ impl Config {
         }
         if let Some(core) = config.core {
             result.core = core;
+        }
+        if let Some(stgy) = config.strategy {
+            result.strategy = stgy;
         }
         if result.servers.is_empty() {
             plog("Servers not Provided.", Log::Err);

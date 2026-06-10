@@ -1,11 +1,12 @@
-use crate::config::{Key, Method};
+use crate::config::{Key, Method, Strategy};
 
 pub fn match_key(key: Key) -> Option<String> {
     let word = match key {
         Key::Port => "port",
-        _ => {
-            return None;
-        }
+        Key::Server => "server",
+        Key::Method => "method",
+        Key::Core => "core",
+        _ => return None,
     };
     Some(word.to_string())
 }
@@ -27,4 +28,13 @@ pub fn match_method(method: &str) -> Option<Method> {
         _ => return None,
     };
     Some(key)
+}
+
+pub fn match_strategy(strategy: &str) -> Option<Strategy> {
+    let stgy = match strategy.to_lowercase().as_str() {
+        "roundrobin" => Strategy::RoundRobin,
+        "leastconnection" => Strategy::LeastConnections,
+        _ => return None,
+    };
+    Some(stgy)
 }
