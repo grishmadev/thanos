@@ -1,9 +1,6 @@
 use std::{
     net::SocketAddr,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::{Arc, atomic::Ordering},
     time::Duration,
 };
 
@@ -21,142 +18,196 @@ pub async fn run_tproxy_method(
     backend: Arc<Backend>,
     strategy: Strategy,
 ) -> Result<(), std::io::Error> {
-    match strategy {
-        Strategy::RoundRobin => run_round_robin(lb_listener, backend).await,
-        Strategy::LeastConnections => run_least_connections(lb_listener, backend).await,
-    }
-}
-
-async fn run_least_connections(
-    lb_listener: TcpListener,
-    backend: Arc<Backend>,
-) -> Result<(), std::io::Error> {
-    loop {
-        let backend_clone = Arc::clone(&backend);
-        let (mut lb_stream, client_addr) = match lb_listener.accept().await {
-            Ok(s) => s,
-            Err(e) => {
-                plog(&e.to_string(), Log::Err);
-                continue;
-            }
-        };
-        let current_idx = backend.idx.load(Ordering::Relaxed);
-        tokio::spawn(async move {
-            let current_server = backend_clone.servers.get(current_idx).unwrap();
-            let sr_socket = TcpSocket::new_v4().unwrap();
-            let sock = SockRef::from(&sr_socket);
-            sock.set_ip_transparent_v4(true).unwrap();
-            sock.set_reuse_address(true).unwrap();
-            let client_addr = SockAddr::from(SocketAddr::new(client_addr.ip(), 0));
-
-            if let Err(e) = sock.bind(&client_addr) {
-                plog(&format!("Bind Error: {}", e), Log::Err);
-                return;
-            };
-
-            let mut sr_stream = match sr_socket.connect(current_server.addr).await {
-                Ok(s) => {
-                    current_server.ttlcn.fetch_add(1, Ordering::Relaxed);
-                    s
-                }
-                Err(e) => {
-                    plog(&e.to_string(), Log::Err);
-                    return;
-                }
-            };
-            sr_stream.set_nodelay(true).unwrap();
-            lb_stream.set_nodelay(true).unwrap();
-
-            tokio::io::copy_bidirectional_with_sizes(&mut sr_stream, &mut lb_stream, 4096, 4096)
-                .await
-                .unwrap();
-
-            // Decreasing count when client disconnects
-            current_server.ttlcn.fetch_sub(1, Ordering::Relaxed);
-        });
-    }
-}
-
-async fn run_round_robin(
-    lb_listener: TcpListener,
-    backend: Arc<Backend>,
-) -> Result<(), std::io::Error> {
-    loop {
-        let backend_clone = Arc::clone(&backend);
-        let (mut lb_stream, client_addr) = match lb_listener.accept().await {
-            Ok(s) => s,
-            Err(e) => {
-                plog(&e.to_string(), Log::Err);
-                continue;
-            }
-        };
-        let current_idx = backend.idx.fetch_add(1, Ordering::Relaxed) % backend_clone.servers.len();
-        tokio::spawn(async move {
-            let current_server = backend_clone.servers.get(current_idx).unwrap();
-            let sr_socket = TcpSocket::new_v4().unwrap();
-            let sock = SockRef::from(&sr_socket);
-            sock.set_ip_transparent_v4(true).unwrap();
-            sock.set_reuse_address(true).unwrap();
-            let client_addr = SockAddr::from(SocketAddr::new(client_addr.ip(), 0));
-
-            if let Err(e) = sock.bind(&client_addr) {
-                plog(&format!("Bind Error: {}", e), Log::Err);
-                return;
-            };
-
-            let mut sr_stream = match sr_socket.connect(current_server.addr).await {
+    async fn run_tproxy_lc(
+        lb_listener: TcpListener,
+        backend: Arc<Backend>,
+    ) -> Result<(), std::io::Error> {
+        loop {
+            let backend_clone = Arc::clone(&backend);
+            let (mut lb_stream, client_addr) = match lb_listener.accept().await {
                 Ok(s) => s,
                 Err(e) => {
                     plog(&e.to_string(), Log::Err);
-                    return;
+                    continue;
                 }
             };
-            sr_stream.set_nodelay(true).unwrap();
-            lb_stream.set_nodelay(true).unwrap();
+            let current_idx = backend.idx.load(Ordering::Relaxed);
+            tokio::spawn(async move {
+                let current_server = backend_clone.servers.get(current_idx).unwrap();
+                let sr_socket = TcpSocket::new_v4().unwrap();
+                let sock = SockRef::from(&sr_socket);
+                sock.set_ip_transparent_v4(true).unwrap();
+                sock.set_reuse_address(true).unwrap();
+                let client_addr = SockAddr::from(SocketAddr::new(client_addr.ip(), 0));
 
-            tokio::io::copy_bidirectional_with_sizes(&mut sr_stream, &mut lb_stream, 4096, 4096)
+                if let Err(e) = sock.bind(&client_addr) {
+                    plog(&format!("Bind Error: {}", e), Log::Err);
+                    return;
+                };
+
+                let mut sr_stream = match sr_socket.connect(current_server.addr).await {
+                    Ok(s) => {
+                        current_server.ttlcn.fetch_add(1, Ordering::Relaxed);
+                        s
+                    }
+                    Err(e) => {
+                        plog(&e.to_string(), Log::Err);
+                        return;
+                    }
+                };
+                sr_stream.set_nodelay(true).unwrap();
+                lb_stream.set_nodelay(true).unwrap();
+
+                tokio::io::copy_bidirectional_with_sizes(
+                    &mut sr_stream,
+                    &mut lb_stream,
+                    4096,
+                    4096,
+                )
                 .await
                 .unwrap();
-        });
+
+                // Decreasing count when client disconnects
+                current_server.ttlcn.fetch_sub(1, Ordering::Relaxed);
+            });
+        }
+    }
+
+    async fn run_tproxy_rr(
+        lb_listener: TcpListener,
+        backend: Arc<Backend>,
+    ) -> Result<(), std::io::Error> {
+        loop {
+            let backend_clone = Arc::clone(&backend);
+            let (mut lb_stream, client_addr) = match lb_listener.accept().await {
+                Ok(s) => s,
+                Err(e) => {
+                    plog(&e.to_string(), Log::Err);
+                    continue;
+                }
+            };
+            let current_idx =
+                backend.idx.fetch_add(1, Ordering::Relaxed) % backend_clone.servers.len();
+            tokio::spawn(async move {
+                let current_server = backend_clone.servers.get(current_idx).unwrap();
+                let sr_socket = TcpSocket::new_v4().unwrap();
+                let sock = SockRef::from(&sr_socket);
+                sock.set_ip_transparent_v4(true).unwrap();
+                sock.set_reuse_address(true).unwrap();
+                let client_addr = SockAddr::from(SocketAddr::new(client_addr.ip(), 0));
+
+                if let Err(e) = sock.bind(&client_addr) {
+                    plog(&format!("Bind Error: {}", e), Log::Err);
+                    return;
+                };
+
+                let mut sr_stream = match sr_socket.connect(current_server.addr).await {
+                    Ok(s) => s,
+                    Err(e) => {
+                        plog(&e.to_string(), Log::Err);
+                        return;
+                    }
+                };
+                sr_stream.set_nodelay(true).unwrap();
+                lb_stream.set_nodelay(true).unwrap();
+
+                tokio::io::copy_bidirectional_with_sizes(
+                    &mut sr_stream,
+                    &mut lb_stream,
+                    4096,
+                    4096,
+                )
+                .await
+                .unwrap();
+            });
+        }
+    }
+    match strategy {
+        Strategy::RoundRobin => run_tproxy_rr(lb_listener, backend).await,
+        Strategy::LeastConnections => run_tproxy_lc(lb_listener, backend).await,
     }
 }
 
 pub async fn run_normal_proxy(
     lb_listener: TcpListener,
     backend: Arc<Backend>,
+    strategy: Strategy,
 ) -> Result<(), std::io::Error> {
-    loop {
-        let backend_clone = Arc::clone(&backend);
-        let (mut lb_stream, _) = match lb_listener.accept().await {
-            Ok(s) => s,
-            Err(e) => {
-                plog(&e.to_string(), Log::Err);
-                continue;
-            }
-        };
-        let current_idx =
-            backend_clone.idx.fetch_add(1, Ordering::Relaxed) % backend_clone.servers.len();
-        tokio::spawn(async move {
-            let current_server = backend_clone.servers.get(current_idx).unwrap();
-            let mut sr_stream = match TcpStream::connect(current_server.addr).await {
-                Ok(s) => {
-                    current_server.ttlcn.fetch_add(1, Ordering::Relaxed);
-                    s
+    async fn run_normal_rr(
+        lb_listener: TcpListener,
+        backend: Arc<Backend>,
+    ) -> Result<(), std::io::Error> {
+        loop {
+            let backend_clone = Arc::clone(&backend);
+            let (mut lb_stream, _) = match lb_listener.accept().await {
+                Ok(s) => s,
+                Err(e) => {
+                    plog(&e.to_string(), Log::Err);
+                    continue;
                 }
-                Err(_) => return,
             };
-            _ = sr_stream.set_nodelay(true);
-            _ = lb_stream.set_nodelay(true);
-            _ = tokio::io::copy_bidirectional_with_sizes(
-                &mut sr_stream,
-                &mut lb_stream,
-                4096,
-                4096,
-            )
-            .await;
+            let current_idx =
+                backend_clone.idx.fetch_add(1, Ordering::Relaxed) % backend_clone.servers.len();
+            tokio::spawn(async move {
+                let current_server = backend_clone.servers.get(current_idx).unwrap();
+                let mut sr_stream = match TcpStream::connect(current_server.addr).await {
+                    Ok(s) => s,
+                    Err(_) => return,
+                };
+                _ = sr_stream.set_nodelay(true);
+                _ = lb_stream.set_nodelay(true);
+                _ = tokio::io::copy_bidirectional_with_sizes(
+                    &mut sr_stream,
+                    &mut lb_stream,
+                    4096,
+                    4096,
+                )
+                .await;
+            });
+        }
+    }
 
-            current_server.ttlcn.fetch_sub(1, Ordering::Relaxed);
-        });
+    async fn run_normal_lc(
+        lb_listener: TcpListener,
+        backend: Arc<Backend>,
+    ) -> Result<(), std::io::Error> {
+        loop {
+            let backend_clone = Arc::clone(&backend);
+            let (mut lb_stream, _) = match lb_listener.accept().await {
+                Ok(s) => s,
+                Err(e) => {
+                    plog(&e.to_string(), Log::Err);
+                    continue;
+                }
+            };
+            let current_idx = backend_clone.idx.load(Ordering::Relaxed);
+            tokio::spawn(async move {
+                let current_server = backend_clone.servers.get(current_idx).unwrap();
+                let mut sr_stream = match TcpStream::connect(current_server.addr).await {
+                    Ok(s) => {
+                        current_server.ttlcn.fetch_add(1, Ordering::Relaxed);
+                        s
+                    }
+                    Err(_) => return,
+                };
+                _ = sr_stream.set_nodelay(true);
+                _ = lb_stream.set_nodelay(true);
+
+                _ = tokio::io::copy_bidirectional_with_sizes(
+                    &mut sr_stream,
+                    &mut lb_stream,
+                    4096,
+                    4096,
+                )
+                .await;
+
+                current_server.ttlcn.fetch_sub(1, Ordering::Relaxed);
+            });
+        }
+    }
+    match strategy {
+        Strategy::RoundRobin => run_normal_rr(lb_listener, backend).await,
+        Strategy::LeastConnections => run_normal_lc(lb_listener, backend).await,
     }
 }
 
@@ -166,6 +217,7 @@ pub async fn run_main(config: Config) -> Result<(), ThanosError> {
     check_server_health(Arc::clone(&backend)).await?;
     let backend_clone = Arc::clone(&backend);
     if config.strategy == Strategy::LeastConnections {
+        // Check for connections and assign server with least connection every 2 ms
         tokio::spawn(async move {
             let mut curidx = 0;
             loop {
@@ -174,6 +226,7 @@ pub async fn run_main(config: Config) -> Result<(), ThanosError> {
                     let curcon = s.ttlcn.load(Ordering::Relaxed);
                     if curcon < least_conns {
                         least_conns = curcon;
+                        curidx = 0;
                         backend_clone.idx.store(curidx, Ordering::Relaxed);
                     }
                     curidx += 1;
@@ -198,7 +251,7 @@ pub async fn run_main(config: Config) -> Result<(), ThanosError> {
                     plog(&e.to_string(), Log::Err);
                 };
             } else {
-                if let Err(e) = run_normal_proxy(lb_listener, backend).await {
+                if let Err(e) = run_normal_proxy(lb_listener, backend, config.strategy).await {
                     plog(&e.to_string(), Log::Err);
                 }
             }

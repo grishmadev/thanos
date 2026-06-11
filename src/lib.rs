@@ -97,26 +97,6 @@ impl From<io::Error> for ThanosError {
     }
 }
 
-pub async fn handle_client(
-    sr_addr: SocketAddr,
-    lb_listener: &mut TcpListener,
-) -> Result<(), ThanosError> {
-    let (mut lb_stream, _) = lb_listener.accept().await?;
-    tokio::spawn(async move {
-        let mut sr_stream = match TcpStream::connect(sr_addr).await {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Cannot connect to {}\n{}", sr_addr, e);
-                return;
-            }
-        };
-        if let Err(e) = tokio::io::copy_bidirectional(&mut sr_stream, &mut lb_stream).await {
-            eprintln!("Address Redirection Error: {}", e);
-        };
-    });
-    Ok(())
-}
-
 pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosError> {
     for idx in 0..backend.servers.len() {
         let backend_clone = Arc::clone(&backend);

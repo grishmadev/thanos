@@ -1,11 +1,11 @@
 use std::net::SocketAddr;
 
-use clap::{ArgGroup, Parser};
+use clap::Parser;
 use mimalloc::MiMalloc;
 use thanos::{
     ThanosError,
     config::{
-        self, CliConfig, Config, Method, get_config_path,
+        CliConfig, Config, get_config_path,
         keymatch::{match_method, match_strategy},
     },
     proxy::run_main,
