@@ -222,7 +222,7 @@ impl Config {
                 }
                 Key::Core => {
                     let core = if let Some(c) = pair.get(1)
-                        && let Ok(parsed_c) = c.parse::<u64>()
+                        && let Ok(parsed_c) = c.trim_matches('"').parse::<u64>()
                     {
                         parsed_c
                     } else {
@@ -233,7 +233,7 @@ impl Config {
                 }
                 Key::Strategy => {
                     let strategy = if let Some(word) = pair.get(1) {
-                        match match_strategy(word.to_owned()) {
+                        match match_strategy(word.to_owned().trim_matches('"')) {
                             Some(stgy) => stgy,
                             None => {
                                 plog(

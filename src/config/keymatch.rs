@@ -17,6 +17,7 @@ pub fn match_word(word: &str) -> Key {
         "server" | "servers" => Key::Server,
         "method" => Key::Method,
         "core" | "cores" => Key::Core,
+        "strategy" => Key::Strategy,
         _ => Key::Unknown,
     }
 }
@@ -32,8 +33,10 @@ pub fn match_method(method: &str) -> Option<Method> {
 
 pub fn match_strategy(strategy: &str) -> Option<Strategy> {
     let stgy = match strategy.to_lowercase().as_str() {
-        "roundrobin" => Strategy::RoundRobin,
-        "leastconnection" => Strategy::LeastConnections,
+        "roundrobin" | "round robin" => Strategy::RoundRobin,
+        "leastconnection" | "least connection" | "least connections" | "leastconnections" => {
+            Strategy::LeastConnections
+        }
         _ => return None,
     };
     Some(stgy)
