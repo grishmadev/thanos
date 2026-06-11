@@ -53,8 +53,6 @@ Normal vs TProxy Method
 | TProxy | Round Robin       | ~ 22200 | ~ 0.0826 s            | ~ 0.0045 s            |
 | Tproxy | Least Connections | ~ 22100 | ~ 0.0603 s            | ~ 0.0045 s            |
 
-// MAKE TABLE WITH TPROXY
-
 ## How to run
 
 ### Config File
