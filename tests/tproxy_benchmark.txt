@@ -2,44 +2,44 @@
 hey -n 1000000 -c 100 http://localhost:9000
 
 Summary:
-  Total:	44.9406 secs
-  Slowest:	0.0826 secs
+  Total:	47.2366 secs
+  Slowest:	0.1536 secs
   Fastest:	0.0001 secs
-  Average:	0.0045 secs
-  Requests/sec:	22251.6100
+  Average:	0.0047 secs
+  Requests/sec:	21170.0229
   
-  Total data:	11000000 bytes
-  Size/request:	11 bytes
+  Total data:	12000000 bytes
+  Size/request:	12 bytes
 
 Response time histogram:
   0.000 [1]	|
-  0.008 [916960]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-  0.017 [78104]	|■■■
-  0.025 [3889]	|
-  0.033 [748]	|
-  0.041 [184]	|
-  0.050 [56]	|
-  0.058 [10]	|
-  0.066 [1]	|
-  0.074 [24]	|
-  0.083 [23]	|
+  0.015 [988430]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.031 [9861]	|
+  0.046 [1151]	|
+  0.061 [296]	|
+  0.077 [160]	|
+  0.092 [25]	|
+  0.108 [34]	|
+  0.123 [5]	|
+  0.138 [0]	|
+  0.154 [37]	|
 
 
 Latency distribution:
-  10% in 0.0014 secs
-  25% in 0.0026 secs
-  50% in 0.0040 secs
-  75% in 0.0058 secs
-  90% in 0.0079 secs
-  95% in 0.0095 secs
-  99% in 0.0137 secs
+  10% in 0.0010 secs
+  25% in 0.0022 secs
+  50% in 0.0041 secs
+  75% in 0.0063 secs
+  90% in 0.0087 secs
+  95% in 0.0106 secs
+  99% in 0.0161 secs
 
 Details (average, fastest, slowest):
-  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.0826 secs
-  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0230 secs
-  req write:	0.0000 secs, 0.0000 secs, 0.0294 secs
-  resp wait:	0.0042 secs, 0.0000 secs, 0.0482 secs
-  resp read:	0.0002 secs, 0.0000 secs, 0.0454 secs
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.1536 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0101 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.1120 secs
+  resp wait:	0.0043 secs, 0.0000 secs, 0.1535 secs
+  resp read:	0.0003 secs, 0.0000 secs, 0.1116 secs
 
 Status code distribution:
   [200]	1000000 responses

@@ -4,16 +4,18 @@ use std::{
     io,
     net::SocketAddr,
     sync::{
-        Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, RwLock, RwLockReadGuard,
+        atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
-    net::{TcpListener, TcpStream},
+    net::TcpStream,
 };
+
+use crate::logs::{Log, plog};
 
 pub mod config;
 pub mod logs;
@@ -24,7 +26,6 @@ pub const DEFAULT_PORT: u16 = 8080;
 #[derive(Debug)]
 pub struct Server {
     pub addr: SocketAddr,
-    pub is_healthy: AtomicBool,
     // total connections, idk how to write it in short
     pub ttlcn: AtomicUsize,
 }
@@ -34,7 +35,6 @@ impl From<SocketAddr> for Server {
         Self {
             addr: server,
             ttlcn: AtomicUsize::new(0),
-            is_healthy: AtomicBool::new(true),
         }
     }
 }
@@ -42,21 +42,46 @@ impl From<SocketAddr> for Server {
 #[derive(Debug)]
 pub struct Backend {
     pub servers: Vec<Server>,
+    pub active_idxs: RwLock<Vec<usize>>,
     pub idx: AtomicUsize,
+}
+
+impl Backend {
+    pub fn add_server(&self, idx: usize) {
+        let mut list = self.active_idxs.write().unwrap();
+        if !list.contains(&idx) {
+            list.push(idx);
+        }
+    }
+
+    pub fn rem_server(&self, idx: usize) {
+        let mut list = self.active_idxs.write().unwrap();
+        list.remove(idx);
+    }
+
+    pub fn next(&self) -> usize {
+        let idxs: RwLockReadGuard<'_, std::vec::Vec<_>>;
+        {
+            idxs = self.active_idxs.read().unwrap();
+        }
+        let idx_idx = self.idx.fetch_add(1, Ordering::Relaxed) % idxs.len();
+        idxs[idx_idx]
+    }
 }
 
 impl From<Vec<SocketAddr>> for Backend {
     fn from(servers: Vec<SocketAddr>) -> Self {
         let mut res = Vec::new();
+        let active_idxs = (0..servers.len()).collect::<Vec<usize>>();
         for addr in servers {
             res.push(Server {
-                is_healthy: AtomicBool::new(true),
                 ttlcn: AtomicUsize::new(0),
                 addr,
             });
         }
         Self {
             servers: res,
+            active_idxs: RwLock::new(active_idxs),
             idx: AtomicUsize::new(0),
         }
     }
@@ -65,6 +90,7 @@ impl From<Vec<SocketAddr>> for Backend {
 impl From<Vec<Server>> for Backend {
     fn from(servers: Vec<Server>) -> Self {
         Self {
+            active_idxs: RwLock::new((0..servers.len()).collect::<Vec<usize>>()),
             servers,
             idx: AtomicUsize::new(0),
         }
@@ -109,38 +135,55 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
             );
             let addr = current_server.addr;
             let threshold = 5;
-            let mut attempts = 0usize;
+            let mut failed = 0u32;
             loop {
                 tokio::time::sleep(Duration::from_secs(2)).await;
-                let is_healthy = &current_server.is_healthy;
-                if attempts == threshold {
-                    println!("Declaring {} as unhealthy", addr);
-                    is_healthy.store(false, Ordering::Relaxed);
+                if failed == threshold {
+                    plog(&format!("Declaring {} as Unhealthy", addr), Log::Info);
+                    backend_clone.rem_server(idx);
                 }
                 let mut buf = [0u8; 1024];
                 let mut sr_stream = match TcpStream::connect(addr).await {
-                    Ok(s) => s,
+                    Ok(s) => {
+                        if failed != 0 {
+                            plog(&format!("Declaring {} as Healthy", addr), Log::Info);
+                            if failed >= threshold {
+                                failed = threshold - 1;
+                            } else {
+                                failed -= 1;
+                            }
+                        } else {
+                            backend_clone.add_server(idx);
+                        }
+                        s
+                    }
                     Err(e) => {
-                        attempts += 1;
-                        eprintln!("[{}] {}", addr, e);
+                        failed += 1;
+                        if backend_clone.active_idxs.read().unwrap().contains(&idx) {
+                            plog(&format!("{addr} {e}"), Log::Err);
+                        }
                         continue;
                     }
                 };
                 sr_stream.write_all(request.as_bytes()).await.unwrap();
                 match sr_stream.read(&mut buf).await {
-                    Ok(s) => {
-                        if s == 0 {
-                            eprintln!("Server not Responding.");
-                            attempts += 1;
-                            continue;
+                    Ok(0) => {
+                        plog(&format!("Server {} not Responding.", addr), Log::Err);
+                        failed += 1;
+                        continue;
+                    }
+                    Ok(_) => {
+                        if failed >= threshold {
+                            failed = threshold - 1;
+                        } else if failed > 0 {
+                            failed -= 1;
                         }
-                        is_healthy.store(true, Ordering::Relaxed);
-                        attempts = 0;
                     }
                     Err(e) => {
-                        is_healthy.store(false, Ordering::Relaxed);
-                        attempts += 1;
-                        eprintln!("[{}] {}", addr, e);
+                        failed += 1;
+                        if backend_clone.active_idxs.read().unwrap().contains(&idx) {
+                            plog(&format!("{addr} {e}"), Log::Err);
+                        }
                     }
                 };
             }

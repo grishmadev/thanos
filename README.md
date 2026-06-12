@@ -69,7 +69,6 @@ port = 9000; # Make sure all statements end in ';'
 
 ```
 servers = [127.0.0.1:8888, 127.0.0.1:8889, 127.0.0.1:8890];
-# or server = ...;
 # or server = ["127.0.0.1:8888", ...];
 ```
 
