@@ -30,17 +30,17 @@ This was tested against 3 [Rust Servers](https://github.com/grishmadev/simpleser
 
 ```sh
 # Tested with hey benchmark tool
-hey -n 1000000 -c 100 <proxy port>
+hey -n 1000000 -c 100 <proxy address>
 ```
 
 **_Note:_** This was tested with Thanos on "normal" method.
 
 | Proxy     | Strategy          | RPS     | Slowest Response Time | Average Response Time |
 | --------- | ----------------- | ------- | --------------------- | --------------------- |
-| `Thanos`  | Round Robin       | ~ 20800 | ~ 0.0934 s            | ~ 0.0048 s            |
+| `Thanos`  | Round Robin       | ~ 20800 | ~ 0.1357 s            | ~ 0.0048 s            |
 | `HAProxy` | Round Robin       | ~ 20500 | ~ 0.0770 s            | ~ 0.0050 s            |
 | `Envoy`   | Round Robin       | ~ 18000 | ~ 0.0970 s            | ~ 0.0055 s            |
-| `Thanos`  | Least Connections | ~ 20900 | ~ 0.1675 s            | ~ 0.0047 s            |
+| `Thanos`  | Least Connections | ~ 20300 | ~ 0.1087 s            | ~ 0.0049 s            |
 | `HAProxy` | Least Connections | ~ 19500 | ~ 0.0671 s            | ~ 0.0051 s            |
 | `Envoy`   | Least Connections | ~ 18000 | ~ 0.0666 s            | ~ 0.0055 s            |
 
@@ -48,10 +48,10 @@ Normal vs TProxy Method
 
 | Method | Strategy          | RPS     | Slowest Response Time | Average Response Time |
 | ------ | ----------------- | ------- | --------------------- | --------------------- |
-| Normal | Round Robin       | ~ 20800 | ~ 0.0934 s            | ~ 0.0048 s            |
-| Normal | Least Connections | ~ 20900 | ~ 0.1675 s            | ~ 0.0047 s            |
-| TProxy | Round Robin       | ~ 22200 | ~ 0.0826 s            | ~ 0.0045 s            |
-| Tproxy | Least Connections | ~ 22100 | ~ 0.0603 s            | ~ 0.0045 s            |
+| Normal | Round Robin       | ~ 20800 | ~ 0.1357 s            | ~ 0.0048 s            |
+| Normal | Least Connections | ~ 20300 | ~ 0.1087 s            | ~ 0.0049 s            |
+| TProxy | Round Robin       | ~ 20700 | ~ 0.1114 s            | ~ 0.0048 s            |
+| Tproxy | Least Connections | ~ 20600 | ~ 0.1350 s            | ~ 0.0048 s            |
 
 ## How to run
 
