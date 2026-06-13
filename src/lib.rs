@@ -4,12 +4,13 @@ use std::{
     io,
     net::SocketAddr,
     sync::{
-        Arc, RwLock, RwLockReadGuard,
+        Arc,
         atomic::{AtomicUsize, Ordering},
     },
     time::Duration,
 };
 
+use arc_swap::ArcSwap;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
@@ -42,30 +43,43 @@ impl From<SocketAddr> for Server {
 #[derive(Debug)]
 pub struct Backend {
     pub servers: Vec<Server>,
-    pub active_idxs: RwLock<Vec<usize>>,
+    pub active_idxs: ArcSwap<Vec<usize>>,
     pub idx: AtomicUsize,
 }
 
 impl Backend {
     pub fn add_server(&self, idx: usize) {
-        let mut list = self.active_idxs.write().unwrap();
+        let mut list = self.active_idxs.load().to_vec();
         if !list.contains(&idx) {
             list.push(idx);
+            self.active_idxs.store(Arc::new(list));
         }
     }
 
     pub fn rem_server(&self, idx: usize) {
-        let mut list = self.active_idxs.write().unwrap();
-        list.remove(idx);
+        let list = self
+            .active_idxs
+            .load()
+            .iter()
+            .filter(|f| **f != idx)
+            .map(|f| f.to_owned())
+            .collect::<Vec<usize>>();
+        self.active_idxs.store(Arc::new(list));
     }
 
+    #[inline]
     pub fn next(&self) -> usize {
-        let idxs: RwLockReadGuard<'_, std::vec::Vec<_>>;
+        let list;
         {
-            idxs = self.active_idxs.read().unwrap();
+            list = self.active_idxs.load();
         }
-        let idx_idx = self.idx.fetch_add(1, Ordering::Relaxed) % idxs.len();
-        idxs[idx_idx]
+        let idx_idx = self.idx.fetch_add(1, Ordering::Relaxed) % list.len();
+        list[idx_idx]
+    }
+
+    #[inline]
+    pub fn contains(&self, idx: &usize) -> bool {
+        self.active_idxs.load().contains(idx)
     }
 }
 
@@ -81,7 +95,7 @@ impl From<Vec<SocketAddr>> for Backend {
         }
         Self {
             servers: res,
-            active_idxs: RwLock::new(active_idxs),
+            active_idxs: ArcSwap::new(Arc::new(active_idxs)),
             idx: AtomicUsize::new(0),
         }
     }
@@ -90,7 +104,7 @@ impl From<Vec<SocketAddr>> for Backend {
 impl From<Vec<Server>> for Backend {
     fn from(servers: Vec<Server>) -> Self {
         Self {
-            active_idxs: RwLock::new((0..servers.len()).collect::<Vec<usize>>()),
+            active_idxs: ArcSwap::new(Arc::new((0..servers.len()).collect::<Vec<usize>>())),
             servers,
             idx: AtomicUsize::new(0),
         }
@@ -147,6 +161,7 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
                     Ok(s) => {
                         if failed != 0 {
                             plog(&format!("Declaring {} as Healthy", addr), Log::Info);
+                            // failed = 0;
                             if failed >= threshold {
                                 failed = threshold - 1;
                             } else {
@@ -159,7 +174,7 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
                     }
                     Err(e) => {
                         failed += 1;
-                        if backend_clone.active_idxs.read().unwrap().contains(&idx) {
+                        if backend_clone.contains(&idx) {
                             plog(&format!("{addr} {e}"), Log::Err);
                         }
                         continue;
@@ -173,15 +188,16 @@ pub async fn check_server_health(backend: Arc<Backend>) -> Result<(), ThanosErro
                         continue;
                     }
                     Ok(_) => {
+                        // failed = 0;
                         if failed >= threshold {
                             failed = threshold - 1;
-                        } else if failed > 0 {
+                        } else if failed != 0 {
                             failed -= 1;
                         }
                     }
                     Err(e) => {
                         failed += 1;
-                        if backend_clone.active_idxs.read().unwrap().contains(&idx) {
+                        if backend_clone.contains(&idx) {
                             plog(&format!("{addr} {e}"), Log::Err);
                         }
                     }

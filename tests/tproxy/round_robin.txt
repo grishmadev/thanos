@@ -1,0 +1,45 @@
+// 3 rust server
+hey -n 1000000 -c 100 http://localhost:9000
+
+Summary:
+  Total:	48.2970 secs
+  Slowest:	0.1114 secs
+  Fastest:	0.0001 secs
+  Average:	0.0048 secs
+  Requests/sec:	20705.2358
+  
+  Total data:	12000000 bytes
+  Size/request:	12 bytes
+
+Response time histogram:
+  0.000 [1]	|
+  0.011 [958120]	|■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.022 [38465]	|■■
+  0.033 [2155]	|
+  0.045 [655]	|
+  0.056 [267]	|
+  0.067 [130]	|
+  0.078 [79]	|
+  0.089 [64]	|
+  0.100 [44]	|
+  0.111 [20]	|
+
+
+Latency distribution:
+  10% in 0.0010 secs
+  25% in 0.0023 secs
+  50% in 0.0042 secs
+  75% in 0.0064 secs
+  90% in 0.0089 secs
+  95% in 0.0107 secs
+  99% in 0.0159 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:	0.0000 secs, 0.0001 secs, 0.1114 secs
+  DNS-lookup:	0.0000 secs, 0.0000 secs, 0.0089 secs
+  req write:	0.0000 secs, 0.0000 secs, 0.0723 secs
+  resp wait:	0.0044 secs, 0.0000 secs, 0.0996 secs
+  resp read:	0.0003 secs, 0.0000 secs, 0.1060 secs
+
+Status code distribution:
+  [200]	1000000 responses
