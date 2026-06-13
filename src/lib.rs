@@ -66,14 +66,29 @@ impl Backend {
             .collect::<Vec<usize>>();
         self.active_idxs.store(Arc::new(list));
     }
-
+    pub fn select_least_conn_server(&self) -> Option<usize> {
+        let active = self.active_idxs.load(); // ArcSwap<Vec<usize>>
+        if active.is_empty() {
+            return None;
+        }
+        let mut best = active[0];
+        let mut least = self.servers[best].ttlcn.load(Ordering::Relaxed);
+        for &idx in active.iter().skip(1) {
+            let conns = self.servers[idx].ttlcn.load(Ordering::Relaxed);
+            if conns < least {
+                least = conns;
+                best = idx;
+            }
+        }
+        Some(best)
+    }
     #[inline]
-    pub fn next(&self) -> usize {
+    pub fn next(&self, idx: &AtomicUsize) -> usize {
         let list;
         {
             list = self.active_idxs.load();
         }
-        let idx_idx = self.idx.fetch_add(1, Ordering::Relaxed) % list.len();
+        let idx_idx = idx.fetch_add(1, Ordering::Relaxed) % list.len();
         list[idx_idx]
     }
 

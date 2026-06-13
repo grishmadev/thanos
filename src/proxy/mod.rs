@@ -105,6 +105,7 @@ pub async fn run_tproxy_method(
         backend: Arc<Backend>,
     ) -> Result<(), std::io::Error> {
         let failed = Arc::new(AtomicUsize::new(0));
+        let counter = AtomicUsize::new(0);
         loop {
             let backend_clone = Arc::clone(&backend);
             let (mut lb_stream, client_addr) = match lb_listener.accept().await {
@@ -114,7 +115,7 @@ pub async fn run_tproxy_method(
                     continue;
                 }
             };
-            let current_idx = backend.next();
+            let current_idx = backend.next(&counter);
             let failed_clone = Arc::clone(&failed);
             tokio::spawn(async move {
                 let current_server = &backend_clone.servers[current_idx];
@@ -170,6 +171,7 @@ pub async fn run_normal_proxy(
         backend: Arc<Backend>,
     ) -> Result<(), std::io::Error> {
         let failed = Arc::new(AtomicUsize::new(0));
+        let counter = AtomicUsize::new(0);
         loop {
             let backend_clone = Arc::clone(&backend);
             let (mut lb_stream, _) = match lb_listener.accept().await {
@@ -179,7 +181,7 @@ pub async fn run_normal_proxy(
                     continue;
                 }
             };
-            let current_idx = backend.next();
+            let current_idx = backend.next(&counter);
             let failed_clone = Arc::clone(&failed);
             tokio::spawn(async move {
                 let current_server = &backend_clone.servers[current_idx];
@@ -267,27 +269,25 @@ pub async fn run_main(config: Config) -> Result<(), ThanosError> {
     check_server_health(Arc::clone(&origin_servers)).await?;
     let backend_clone = Arc::clone(&origin_servers);
     if config.strategy == Strategy::LeastConnections {
-        // Check for connections and assign server with least connection every 5 ms
+        // Allocate active server for Least Connection
         tokio::spawn(async move {
-            let mut curidx = 0;
+            let mut interval = tokio::time::interval(Duration::from_millis(10));
             loop {
-                let mut least_conns = usize::MAX;
-                {
-                    let idxs = backend_clone.active_idxs.load();
-                    for idx in idxs.iter() {
-                        let current_server = &backend_clone.servers[*idx];
-                        let ttlcn = current_server.ttlcn.load(Ordering::Relaxed);
-                        if ttlcn <= least_conns {
-                            least_conns = ttlcn;
-                            backend_clone.idx.store(*idx, Ordering::Relaxed);
-                            curidx = 0;
-                        }
-                        if curidx < idxs.len() {
-                            curidx += 1;
-                        }
+                interval.tick().await;
+                let active = backend_clone.active_idxs.load();
+                if active.is_empty() {
+                    continue;
+                }
+                let mut best = active[0];
+                let mut least = backend_clone.servers[best].ttlcn.load(Ordering::Relaxed);
+                for &idx in active.iter().skip(1) {
+                    let conns = backend_clone.servers[idx].ttlcn.load(Ordering::Relaxed);
+                    if conns < least {
+                        least = conns;
+                        best = idx;
                     }
                 }
-                tokio::time::sleep(Duration::from_millis(5)).await;
+                backend_clone.idx.store(best, Ordering::Relaxed);
             }
         });
     }
