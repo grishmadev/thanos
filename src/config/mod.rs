@@ -1,6 +1,14 @@
 pub mod keymatch;
 use core::panic;
-use std::{env, error::Error, fs::File, io::Read, net::SocketAddr, path::Path, process};
+use std::{
+    env,
+    error::Error,
+    fs::{self, File},
+    io::Read,
+    net::SocketAddr,
+    path::Path,
+    process,
+};
 
 use crate::{
     config::keymatch::{match_method, match_strategy, match_word},
@@ -85,6 +93,7 @@ impl Default for Config {
 impl Config {
     pub fn read_file(config_path: &str) -> Result<Vec<String>, Box<dyn Error>> {
         if !Path::new(config_path).exists() {
+            fs::File::create(config_path)?;
             return Err("Failed to read config file.\nUsing default settings.".into());
         };
 
@@ -116,7 +125,7 @@ impl Config {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("{}", e);
-                return Ok(result);
+                vec![]
             }
         };
 
